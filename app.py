@@ -2,77 +2,99 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import shap
+import matplotlib.pyplot as plt
 
-# Set page layout
-st.set_page_config(page_title="Customer Churn Predictor", layout="centered")
+from src.recommendations import generate_retention_recommendations
 
-st.title("Customer Churn Prediction Dashboard")
-st.write("Enter customer attributes below to calculate real-time churn risk.")
+st.set_page_config(page_title="Customer Churn & Retention Intelligence", layout="wide")
 
-# Load trained model and column structure
 @st.cache_resource
-def load_assets():
-    model = joblib.load('xgb_model.pkl')
-    columns = joblib.load('model_columns.pkl')
-    return model, columns
+def load_artifacts():
+    model = joblib.load('models/model.pkl')
+    pipeline = joblib.load('models/pipeline.pkl')
+    return model, pipeline
 
 try:
-    model, model_columns = load_assets()
+    model, pipeline = load_artifacts()
 except Exception as e:
-    st.error(f"Error loading model files: {e}")
+    st.error("Error loading model artifacts. Please run `python src/train.py` first.")
     st.stop()
 
-# Form layout for inputs
-with st.form("churn_form"):
-    col1, col2 = st.columns(2)
+st.title("📊 Customer Churn Prediction & Retention Dashboard")
+st.write("Input customer attributes to calculate real-time churn probability, view SHAP feature importances, and retrieve retention strategies.")
+
+st.sidebar.header("Customer Profile Input")
+
+# Dynamic inputs
+tenure = st.sidebar.slider("Tenure (Months)", 0, 72, 12)
+monthly_charges = st.sidebar.number_input("Monthly Charges ($)", 18.0, 120.0, 65.0)
+total_charges = st.sidebar.number_input("Total Charges ($)", 0.0, 9000.0, float(tenure * monthly_charges))
+
+gender = st.sidebar.selectbox("Gender", ["Female", "Male"])
+senior = st.sidebar.selectbox("Senior Citizen", ["0", "1"])
+partner = st.sidebar.selectbox("Partner", ["Yes", "No"])
+dependents = st.sidebar.selectbox("Dependents", ["Yes", "No"])
+
+contract = st.sidebar.selectbox("Contract Type", ["Month-to-month", "One year", "Two year"])
+internet = st.sidebar.selectbox("Internet Service", ["DSL", "Fiber optic", "No"])
+payment = st.sidebar.selectbox("Payment Method", ["Electronic check", "Mailed check", "Bank transfer (automatic)", "Credit card (automatic)"])
+paperless = st.sidebar.selectbox("Paperless Billing", ["Yes", "No"])
+
+phone = st.sidebar.selectbox("Phone Service", ["Yes", "No"])
+multiple_lines = st.sidebar.selectbox("Multiple Lines", ["Yes", "No", "No phone service"])
+security = st.sidebar.selectbox("Online Security", ["Yes", "No", "No internet service"])
+backup = st.sidebar.selectbox("Online Backup", ["Yes", "No", "No internet service"])
+device = st.sidebar.selectbox("Device Protection", ["Yes", "No", "No internet service"])
+tech = st.sidebar.selectbox("Tech Support", ["Yes", "No", "No internet service"])
+tv = st.sidebar.selectbox("Streaming TV", ["Yes", "No", "No internet service"])
+movies = st.sidebar.selectbox("Streaming Movies", ["Yes", "No", "No internet service"])
+
+input_dict = {
+    'gender': gender, 'SeniorCitizen': senior, 'Partner': partner, 'Dependents': dependents,
+    'tenure': tenure, 'PhoneService': phone, 'MultipleLines': multiple_lines,
+    'InternetService': internet, 'OnlineSecurity': security, 'OnlineBackup': backup,
+    'DeviceProtection': device, 'TechSupport': tech, 'StreamingTV': tv,
+    'StreamingMovies': movies, 'Contract': contract, 'PaperlessBilling': paperless,
+    'PaymentMethod': payment, 'MonthlyCharges': monthly_charges, 'TotalCharges': total_charges
+}
+
+input_df = pd.DataFrame([input_dict])
+
+if st.button("Calculate Churn Risk", type="primary"):
+    # Apply pipeline transformation
+    input_trans = pipeline.transform(input_df)
+    churn_proba = model.predict_proba(input_trans)[0][1]
+    
+    # 4-Tier Risk Segmentation
+    if churn_proba < 0.30:
+        risk_tier, color = "Low Risk", "green"
+    elif churn_proba < 0.60:
+        risk_tier, color = "Medium Risk", "orange"
+    elif churn_proba < 0.80:
+        risk_tier, color = "High Risk", "red"
+    else:
+        risk_tier, color = "Critical Risk", "darkred"
+
+    col1, col2 = st.columns([1, 1])
     
     with col1:
-        tenure = st.slider("Tenure (Months)", min_value=0, max_value=72, value=12)
-        monthly_charges = st.number_input("Monthly Charges ($)", min_value=18.0, max_value=120.0, value=65.0)
-        total_charges = st.number_input("Total Charges ($)", min_value=0.0, max_value=9000.0, value=780.0)
+        st.metric(label="Calculated Churn Probability", value=f"{churn_proba * 100:.1f}%")
+        st.markdown(f"### Risk Tier: <span style='color:{color}'>{risk_tier}</span>", unsafe_allow_html=True)
         
     with col2:
-        contract = st.selectbox("Contract Type", ["Month-to-month", "One year", "Two year"])
-        internet_service = st.selectbox("Internet Service", ["DSL", "Fiber optic", "No"])
-        payment_method = st.selectbox("Payment Method", [
-            "Electronic check", "Mailed check", "Bank transfer (automatic)", "Credit card (automatic)"
-        ])
-        
-    submit_button = st.form_submit_button("Predict Churn Risk")
+        st.subheader("💡 Rule-Based Retention Recommendations")
+        recs = generate_retention_recommendations(input_dict, churn_proba)
+        for r in recs:
+            st.write(r)
 
-if submit_button:
-    # 1. Create a baseline dictionary with zero for all model features
-    input_dict = {col: 0 for col in model_columns}
-    
-    # 2. Populate numeric features
-    if 'tenure' in input_dict: input_dict['tenure'] = tenure
-    if 'MonthlyCharges' in input_dict: input_dict['MonthlyCharges'] = monthly_charges
-    if 'TotalCharges' in input_dict: input_dict['TotalCharges'] = total_charges
-    
-    # 3. Populate categorical dummy variables matching pandas get_dummies naming
-    contract_col = f"Contract_{contract}"
-    if contract_col in input_dict:
-        input_dict[contract_col] = 1
-        
-    internet_col = f"InternetService_{internet_service}"
-    if internet_col in input_dict:
-        input_dict[internet_col] = 1
-        
-    payment_col = f"PaymentMethod_{payment_method}"
-    if payment_col in input_dict:
-        input_dict[payment_col] = 1
-
-    # 4. Convert to DataFrame
-    input_df = pd.DataFrame([input_dict])
-    
-    # 5. Predict churn probability
-    churn_proba = model.predict_proba(input_df)[0][1]
-    churn_percentage = churn_proba * 100
-    
     st.markdown("---")
-    st.subheader(f"Calculated Churn Probability: **{churn_percentage:.1f}%**")
+    st.subheader("🔍 Local SHAP Feature Contribution")
     
-    if churn_proba > 0.5:
-        st.error("⚠️ **High Churn Risk!** Customer is likely to leave. Consider offering a retention discount or contract upgrade.")
-    else:
-        st.success("✅ **Low Churn Risk.** Customer behavior aligns with long-term retention.")
+    # Local SHAP plot for the user's specific input
+    explainer = shap.TreeExplainer(model)
+    shap_vals = explainer(input_trans)
+    
+    fig, ax = plt.subplots(figsize=(8, 4))
+    shap.plots.bar(shap_vals[0], max_display=7, show=False)
+    st.pyplot(fig)
