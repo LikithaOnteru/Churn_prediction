@@ -258,10 +258,31 @@ Examples include recommendations related to:
 These recommendations are **rule-based business suggestions**, not machine-learning predictions or causal interventions.
 
 ---
+## 🖥️ Dashboard Preview
 
-## 🖥️ Streamlit Dashboard
+### 1. Customer Assessment Dashboard
 
-The application provides two interfaces.
+The dashboard allows users to enter customer details and evaluate individual churn risk.
+
+![Customer Churn Dashboard](churn_screenshots/dashboard.png)
+
+### 2. Churn Prediction & SHAP Explanation
+
+The system displays the predicted churn probability, risk tier, decision threshold, and SHAP-based feature contributions for the individual prediction.
+
+![Churn Prediction and SHAP Explanation](churn_screenshots/prediction-shap.png)
+
+### 3. Retention Recommendations
+
+The rule-based retention engine identifies potential churn drivers and generates actionable retention strategies.
+
+![Retention Recommendations](churn_screenshots/recommendations.png)
+
+### 4. Batch Customer Analysis
+
+The application supports batch analysis of customer records and generates a retention roster that can be downloaded as a CSV report.
+
+![Batch Customer Analysis](churn_screenshots/batch-analysis.png)
 
 ### 👤 Single Customer Assessment
 
