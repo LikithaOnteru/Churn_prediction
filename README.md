@@ -364,7 +364,7 @@ git clone https://github.com/LikithaOnteru/Churn_prediction.git
 Navigate into the project:
 
 ```bash
-cd churn_prediction_project
+cd Churn_prediction
 ```
 
 Create a virtual environment:
