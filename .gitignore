@@ -1,13 +1,18 @@
-# Byte-compiled / optimized / DLL files
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 
-# Model artifacts
-models/
-*.pkl
-*.joblib
-
-# Virtual Environment
+# Virtual environments
 .venv/
 env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment variables
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
